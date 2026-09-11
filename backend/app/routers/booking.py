@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from .. import schemas
 from ..database import get_conn, active_db
+from ..mandi_state import is_active
 
 router = APIRouter(
     prefix="/bookings",
@@ -58,6 +59,9 @@ def list_slots():
 
 @router.post("/book-slot")
 def book_slot(req: schemas.BookingRequest):
+    if not is_active():
+        return {"success": False, "reason": "Procurement is currently halted"}
+
     with get_conn() as conn:
         farmer = conn.execute(
             "SELECT id FROM farmers WHERE phone = %s;", (req.phone,)

@@ -10,7 +10,8 @@ from app.routers import (
     queue,
     voice,
     admin,
-    parv_routes
+    parv_routes,
+    dashboard
 )
 
 from app.middleware.error_handler import (
@@ -82,6 +83,11 @@ app.include_router(
     parv_routes.router,
     prefix="/api/v1",
     tags=["Parv - Backend Support"]
+)
+
+app.include_router(
+    dashboard.router,
+    prefix="/api/v1"
 )
 
 

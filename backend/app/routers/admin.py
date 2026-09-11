@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from .. import schemas
 from ..database import get_conn
 from ..notifications import queue_message, flush_queue
+from ..mandi_state import mark_halted, mark_resumed
 from .booking import hindi_when
 
 router = APIRouter(
@@ -66,6 +67,8 @@ def halt_mandi(req: schemas.HaltRequest):
             "ORDER BY b.token_number;",
             (req.from_time,),
         ).fetchall()
+
+        mark_halted(conn, req.reason)
 
         for (bid, old_slot_id, farmer_id, token, crop,
              phone, name, old_time, old_date) in affected:
@@ -140,6 +143,14 @@ def halt_mandi(req: schemas.HaltRequest):
         "affected_count": len(moved),
         "rescheduled": moved,
     }
+
+
+@router.post("/resume")
+def resume_mandi():
+    with get_conn() as conn:
+        mark_resumed(conn)
+        conn.commit()
+    return {"active": True}
 
 
 @router.post("/notifications/flush")

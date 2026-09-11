@@ -40,3 +40,17 @@ CREATE TABLE notifications (
 
 CREATE INDEX idx_bookings_slot ON bookings(slot_id);
 CREATE INDEX idx_notif_phone ON notifications(phone);
+
+-- Single-row table tracking whether procurement is currently halted.
+-- Added for the dashboard's HALT/RESUME buttons (POST /halt, /resume) —
+-- additive only, doesn't touch any existing table.
+CREATE TABLE mandi_state (
+    id INT PRIMARY KEY DEFAULT 1,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    halted_reason VARCHAR(200),
+    halted_at TIMESTAMP,
+    resumed_at TIMESTAMP,
+    CONSTRAINT single_row CHECK (id = 1)
+);
+
+INSERT INTO mandi_state (id, active) VALUES (1, TRUE);
