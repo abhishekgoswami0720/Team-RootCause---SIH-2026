@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+psycopg[binary]>=3.1
+python-dotenv
+thefuzz
+python-Levenshtein
+httpx
