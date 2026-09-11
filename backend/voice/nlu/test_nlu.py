@@ -36,16 +36,16 @@ DEMO_SENTENCES = [
         "गाँव नांगल, फसल गेहूँ।",
     ),
     (
-        "Hindi spelling variation: 'गेहूं' with Barsana village",
-        "गाँव बरसाना और फसल गेहूं है।",
+        "Hindi spelling variation: 'गेहूं' with Assandh village",
+        "गाँव असंध और फसल गेहूं है।",
     ),
     (
-        "Mixed Hindi-English text (Govardhan + Mustard)",
-        "गाँव गोवर्धन, crop mustard.",
+        "Mixed Hindi-English text (Indri + Mustard)",
+        "गाँव इंद्री, crop mustard.",
     ),
     (
         "Village-only sentence (Missing crop)",
-        "हम गोवर्धन गाँव के किसान हैं।",
+        "हम इंद्री गाँव के किसान हैं।",
     ),
     (
         "Crop-only sentence (Missing village)",
@@ -53,7 +53,7 @@ DEMO_SENTENCES = [
     ),
     (
         "Ambiguous sentence (Two different villages mentioned)",
-        "नांगल और गोवर्धन के बीच में खेत है, फसल बाजरा है।",
+        "नांगल और इंद्री के बीच में खेत है, फसल बाजरा है।",
     ),
     (
         "Unrecognized input (General Mandi inquiry, neither entity)",

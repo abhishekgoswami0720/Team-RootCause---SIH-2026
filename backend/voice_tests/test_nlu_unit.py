@@ -41,11 +41,11 @@ class TestDeterministicNLU(unittest.TestCase):
 
     def test_village_only_sentence(self):
         """Verify handling when only village is mentioned."""
-        text = "हम गोवर्धन गाँव के निवासी हैं।"
+        text = "हम इंद्री गाँव के निवासी हैं।"
         result = self.nlu.parse(text)
 
         self.assertFalse(result["success"])
-        self.assertEqual(result["village"], "Govardhan")
+        self.assertEqual(result["village"], "Indri")
         self.assertIsNone(result["crop"])
         self.assertEqual(result["missing_fields"], ["crop"])
         self.assertEqual(result["ambiguous_fields"], [])
@@ -74,26 +74,26 @@ class TestDeterministicNLU(unittest.TestCase):
 
     def test_hindi_spelling_variation(self):
         """Verify spelling variations like 'गेहूं' vs 'गेहूँ' both map to Wheat."""
-        result_gehun1 = self.nlu.parse("गाँव बरसाना फसल गेहूँ")
+        result_gehun1 = self.nlu.parse("गाँव असंध फसल गेहूँ")
         self.assertTrue(result_gehun1["success"])
-        self.assertEqual(result_gehun1["village"], "Barsana")
+        self.assertEqual(result_gehun1["village"], "Assandh")
         self.assertEqual(result_gehun1["crop"], "Wheat")
 
-        result_gehun2 = self.nlu.parse("गाँव बरसाना फसल गेहूं")
+        result_gehun2 = self.nlu.parse("गाँव असंध फसल गेहूं")
         self.assertTrue(result_gehun2["success"])
-        self.assertEqual(result_gehun2["village"], "Barsana")
+        self.assertEqual(result_gehun2["village"], "Assandh")
         self.assertEqual(result_gehun2["crop"], "Wheat")
 
     def test_english_crop_name(self):
         """Verify English crop names (e.g. 'wheat', 'mustard', 'pearl millet')."""
-        result1 = self.nlu.parse("Village Chhata and crop is wheat.")
+        result1 = self.nlu.parse("Village Nissing and crop is wheat.")
         self.assertTrue(result1["success"])
-        self.assertEqual(result1["village"], "Chhata")
+        self.assertEqual(result1["village"], "Nissing")
         self.assertEqual(result1["crop"], "Wheat")
 
-        result2 = self.nlu.parse("Village Sonkh and crop pearl millet.")
+        result2 = self.nlu.parse("Village Gharaunda and crop pearl millet.")
         self.assertTrue(result2["success"])
-        self.assertEqual(result2["village"], "Sonkh")
+        self.assertEqual(result2["village"], "Gharaunda")
         self.assertEqual(result2["crop"], "Pearl Millet")
 
     def test_case_insensitive_latin(self):
@@ -143,7 +143,7 @@ class TestDeterministicNLU(unittest.TestCase):
 
     def test_multiple_ambiguous_villages(self):
         """Verify multiple distinct known villages trigger ambiguity without guessing."""
-        text = "हम नांगल और गोवर्धन दोनों जगह से आते हैं, फसल गेहूँ है।"
+        text = "हम नांगल और इंद्री दोनों जगह से आते हैं, फसल गेहूँ है।"
         result = self.nlu.parse(text)
 
         self.assertFalse(result["success"])
@@ -200,9 +200,9 @@ class TestDeterministicNLU(unittest.TestCase):
 
     def test_convenience_function_parse_transcript(self):
         """Verify parse_transcript convenience helper works identically."""
-        result = parse_transcript("गाँव बरसाना फसल सरसों")
+        result = parse_transcript("गाँव असंध फसल सरसों")
         self.assertTrue(result["success"])
-        self.assertEqual(result["village"], "Barsana")
+        self.assertEqual(result["village"], "Assandh")
         self.assertEqual(result["crop"], "Mustard")
 
 

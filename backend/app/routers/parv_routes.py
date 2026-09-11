@@ -26,9 +26,9 @@ def get_farmer_status(phone: str):
             "SELECT b.id, b.token_number, b.status, b.created_at, "
             "s.id, s.start_time "
             "FROM bookings b JOIN slots s ON b.slot_id = s.id "
-            "WHERE b.farmer_id = %s AND b.status IN %s "
+            "WHERE b.farmer_id = %s AND b.status = ANY(%s) "
             "ORDER BY b.created_at DESC LIMIT 1;",
-            (farmer_id, ACTIVE_STATUSES),
+            (farmer_id, list(ACTIVE_STATUSES)),
         ).fetchone()
         if not booking_row:
             raise HTTPException(status_code=404, detail="No active booking found for this farmer")

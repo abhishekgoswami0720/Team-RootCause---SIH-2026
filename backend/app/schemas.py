@@ -2,6 +2,14 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
+# --- Farmer (Abhishek — registration) --------------------------------------
+
+class FarmerRegisterRequest(BaseModel):
+    phone: str
+    name: Optional[str] = None
+    village: Optional[str] = None
+
+
 # --- Booking (Abhishek) ---------------------------------------------------
 
 class BookingRequest(BaseModel):

@@ -260,13 +260,21 @@
     audioStateBadge.textContent = 'स्पीच तैयार';
   }
 
-  function handleVoiceTranscript(transcript) {
+  async function handleVoiceTranscript(transcript) {
     stopListening();
     lcdHindi.textContent = `प्रोसेसिंग: ${transcript}`;
+    logEvent('USER', `किसान बोला: "${transcript}"`);
 
-    // Send to backend voice endpoint
-    if (isApiOnline) {
-      fetch(`${API_BASE}/voice/inbound`, {
+    if (!isApiOnline) {
+      // No backend reachable to run NLU against — fall back to the scripted demo path.
+      setTimeout(() => executeSlotBooking('गेहूँ (Wheat)'), 900);
+      return;
+    }
+
+    // Real flow: backend runs deterministic NLU on the transcript, then
+    // registers/books for real. We just display whatever it returns.
+    try {
+      const response = await fetch(`${API_BASE}/voice/inbound`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -274,18 +282,24 @@
           transcript: transcript,
           timestamp: new Date().toISOString()
         })
-      })
-      .then(res => res.json())
-      .then(data => {
-        logEvent('API', `Voice API Response: ${JSON.stringify(data.message || 'OK')}`);
-      })
-      .catch(err => console.warn('Voice API error:', err));
-    }
+      });
+      const data = await response.json();
+      logEvent('API', `Voice API Response: ${JSON.stringify(data)}`);
 
-    // Process Booking automatically
-    setTimeout(() => {
+      if (data.missing_fields && data.missing_fields.length) {
+        // NLU couldn't confidently extract village/crop — never guess, ask again.
+        const prompt = data.prompt_hindi || 'माफ़ कीजिए, आपकी बात पूरी तरह समझ नहीं आई। कृपया कीपैड का उपयोग करें।';
+        lcdHindi.textContent = prompt;
+        speakHindi(prompt, () => promptCropSelection());
+        return;
+      }
+
+      presentBookingResult(data, data.crop || 'फसल');
+    } catch (e) {
+      console.warn('Voice API error:', e);
+      logEvent('WARN', 'Voice API अनुपलब्ध — स्थानीय सिम्युलेशन मोड');
       executeSlotBooking('गेहूँ (Wheat)');
-    }, 900);
+    }
   }
 
   // --- Backend API Connectivity Check ---
@@ -439,74 +453,147 @@
   }
 
   // Execute Slot Booking
-  async function executeSlotBooking(cropName) {
+  // Renders + speaks a REAL booking result from the backend (shared by the
+  // keypad path and the voice path, so both show actual server data instead
+  // of the hardcoded T-104 / T-101 demo values).
+  function presentBookingResult(resData, cropLabel) {
     currentState = CallState.BOOKING_CONFIRMED;
-    lcdTitle.textContent = 'बुकिंग सफल!';
-    lcdHindi.textContent = `टोकन: ${currentFarmer.token} | ${currentFarmer.slotTime}`;
-    lcdPrompt.textContent = `फसल: ${cropName} · करनाल मंडी`;
 
-    logEvent('API', `स्लॉट आरक्षित किया गया -> टोकन: ${currentFarmer.token}`);
+    // "Already booked" isn't a failure from the farmer's point of view —
+    // it just means he already has a valid slot; show it as confirmed.
+    const isConfirmed = resData.success || (resData.reason === 'Already booked' && resData.token);
 
-    // Call live API if online
-    if (isApiOnline) {
-      try {
-        const response = await fetch(`${API_BASE}/bookings/book-slot`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: currentFarmer.phone,
-            crop: cropName,
-            village: currentFarmer.village
-          })
-        });
-        const resData = await response.json();
-        logEvent('API', `सर्वर पुष्टि: ${JSON.stringify(resData.message || 'Booked')}`);
-      } catch (e) {
-        logEvent('WARN', 'स्थानीय सिम्युलेशन मोड में बुकिंग जारी');
-      }
+    if (!isConfirmed) {
+      const reason = resData.message_hindi || resData.reason || 'बुकिंग असफल रही।';
+      lcdTitle.textContent = 'बुकिंग असफल';
+      lcdHindi.textContent = reason;
+      lcdPrompt.textContent = '[ * : मेनू पर वापस जाएँ ]';
+      logEvent('API', `बुकिंग असफल -> ${reason}`);
+      speakHindi(reason);
+      return;
     }
 
-    // Spoken Hindi Confirmation
-    const confirmSpeech = `बधाई हो! आपका टोकन नंबर ${currentFarmer.token} है। करनाल मंडी में आपका समय ${currentFarmer.slotTime} निर्धारित हुआ है। आपके फोन पर एसएमएस भेज दिया गया है।`;
+    const token = resData.token;
+    const slotWhen = (resData.date && resData.time) ? `${resData.date} ${resData.time}` : currentFarmer.slotTime;
+
+    lcdTitle.textContent = 'बुकिंग सफल!';
+    lcdHindi.textContent = `टोकन: ${token} | ${slotWhen}`;
+    lcdPrompt.textContent = `फसल: ${cropLabel} · करनाल मंडी`;
+
+    logEvent('API', `स्लॉट आरक्षित किया गया -> टोकन: ${token}`);
+
+    const confirmSpeech = resData.message_hindi ||
+      `बधाई हो! आपका टोकन नंबर ${token} है। आपके फोन पर एसएमएस भेज दिया गया है।`;
     speakHindi(confirmSpeech);
 
-    // Send SMS to Farmer's Inbox
     deliverSms({
       sender: 'VK-MANDIQ',
-      body: `MandiQ: प्रिय ${currentFarmer.name}, आपका टोकन ${currentFarmer.token} है। करनाल मंडी स्लॉट: ${currentFarmer.slotTime}। फसल: ${cropName}। कृपया समय पर ट्रैक्टर लेकर पहुँचें।`,
-      token: currentFarmer.token,
+      body: `MandiQ: प्रिय ${currentFarmer.name}, आपका टोकन ${token} है। करनाल मंडी स्लॉट: ${slotWhen}। फसल: ${cropLabel}। कृपया समय पर ट्रैक्टर लेकर पहुँचें।`,
+      token: token,
       isAlert: false
     });
+  }
+
+  async function executeSlotBooking(cropName) {
+    logEvent('API', 'बुकिंग अनुरोध भेजा जा रहा है...');
+
+    if (!isApiOnline) {
+      // Standalone demo mode — no backend reachable, fall back to the scripted result.
+      currentState = CallState.BOOKING_CONFIRMED;
+      lcdTitle.textContent = 'बुकिंग सफल! (डेमो मोड)';
+      lcdHindi.textContent = `टोकन: ${currentFarmer.token} | ${currentFarmer.slotTime}`;
+      lcdPrompt.textContent = `फसल: ${cropName} · करनाल मंडी`;
+      speakHindi(`बधाई हो! आपका टोकन नंबर ${currentFarmer.token} है। करनाल मंडी में आपका समय ${currentFarmer.slotTime} निर्धारित हुआ है।`);
+      deliverSms({
+        sender: 'VK-MANDIQ',
+        body: `MandiQ: प्रिय ${currentFarmer.name}, आपका टोकन ${currentFarmer.token} है। करनाल मंडी स्लॉट: ${currentFarmer.slotTime}। फसल: ${cropName}। कृपया समय पर ट्रैक्टर लेकर पहुँचें।`,
+        token: currentFarmer.token,
+        isAlert: false
+      });
+      return;
+    }
+
+    try {
+      // book-slot deliberately rejects unregistered phone numbers — make
+      // sure this demo farmer exists first. Idempotent, safe to call every time.
+      await fetch(`${API_BASE}/farmers/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: currentFarmer.phone,
+          name: currentFarmer.name,
+          village: currentFarmer.village
+        })
+      });
+
+      const response = await fetch(`${API_BASE}/bookings/book-slot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: currentFarmer.phone,
+          crop: cropName
+        })
+      });
+      const resData = await response.json();
+      presentBookingResult(resData, cropName);
+    } catch (e) {
+      console.warn('Booking API error:', e);
+      logEvent('WARN', 'बुकिंग API अनुपलब्ध — कृपया पुनः प्रयास करें');
+      presentBookingResult({ success: false, reason: 'सर्वर से संपर्क नहीं हो सका।' }, cropName);
+    }
   }
 
   // Execute Status Check (Key 2)
   async function executeStatusCheck() {
     currentState = CallState.STATUS_QUERY;
-    lcdTitle.textContent = 'कतार स्थिति';
-    lcdHindi.textContent = 'टोकन: T-101 | आगे: 3 ट्रैक्टर';
-    lcdPrompt.textContent = 'अनुमानित प्रतीक्षा: 20 मिनट';
+    logEvent('API', 'कतार जांच अनुरोध भेजा जा रहा है...');
 
-    logEvent('API', `कतार जांच -> टोकन T-101`);
-
-    if (isApiOnline) {
-      try {
-        const response = await fetch(`${API_BASE}/queue/T-101`, { method: 'GET' });
-        const data = await response.json();
-        logEvent('API', `Queue API: ${JSON.stringify(data)}`);
-      } catch (e) {
-        logEvent('WARN', 'स्थानीय सिम्युलेशन से कतार स्थिति प्रदर्शित');
-      }
+    if (!isApiOnline) {
+      lcdTitle.textContent = 'कतार स्थिति (डेमो मोड)';
+      lcdHindi.textContent = 'टोकन: T-101 | आगे: 3 ट्रैक्टर';
+      lcdPrompt.textContent = 'अनुमानित प्रतीक्षा: 20 मिनट';
+      speakHindi('आपका टोकन नंबर टी एक सौ एक है। वर्तमान में टोकन अठानवे चल रहा है। आपकी बारी आने में लगभग बीस मिनट लगेंगे।');
+      deliverSms({
+        sender: 'VK-MANDIQ',
+        body: `MandiQ STATUS: आपका टोकन T-101 है। वर्तमान टोकन T-98 चल रहा है। अनुमानित समय 20 मिनट शेष।`,
+        token: 'T-101',
+        isAlert: false
+      });
+      return;
     }
 
-    const statusSpeech = 'आपका टोकन नंबर टी एक सौ एक है। वर्तमान में टोकन अठानवे चल रहा है। आपकी बारी आने में लगभग बीस मिनट लगेंगे।';
-    speakHindi(statusSpeech);
+    try {
+      const response = await fetch(`${API_BASE}/status/${encodeURIComponent(currentFarmer.phone)}`, { method: 'GET' });
+      if (!response.ok) {
+        const noBookingMsg = 'आपकी अभी कोई सक्रिय बुकिंग नहीं मिली। पहले एक दबाकर स्लॉट बुक करें।';
+        lcdTitle.textContent = 'कोई बुकिंग नहीं';
+        lcdHindi.textContent = noBookingMsg;
+        lcdPrompt.textContent = '[ * : मेनू पर वापस जाएँ ]';
+        speakHindi(noBookingMsg);
+        return;
+      }
+      const data = await response.json();
+      logEvent('API', `Queue API: ${JSON.stringify(data)}`);
 
-    deliverSms({
-      sender: 'VK-MANDIQ',
-      body: `MandiQ STATUS: आपका टोकन T-101 है। वर्तमान टोकन T-98 चल रहा है। अनुमानित समय 20 मिनट शेष। करनाल गेट नं 2 पर संपर्क करें।`,
-      token: 'T-101',
-      isAlert: false
-    });
+      lcdTitle.textContent = 'कतार स्थिति';
+      lcdHindi.textContent = `टोकन: ${data.token_number} | आगे: ${Math.max(data.queue_position - 1, 0)} किसान`;
+      lcdPrompt.textContent = `अनुमानित प्रतीक्षा: ${data.estimated_wait_minutes} मिनट`;
+
+      speakHindi(`आपका टोकन नंबर ${data.token_number} है। कतार में आपकी स्थिति ${data.queue_position} है। आपकी बारी आने में लगभग ${data.estimated_wait_minutes} मिनट लगेंगे।`);
+
+      deliverSms({
+        sender: 'VK-MANDIQ',
+        body: `MandiQ STATUS: आपका टोकन ${data.token_number} है। अनुमानित प्रतीक्षा ${data.estimated_wait_minutes} मिनट।`,
+        token: String(data.token_number),
+        isAlert: false
+      });
+    } catch (e) {
+      console.warn('Status API error:', e);
+      logEvent('WARN', 'Status API अनुपलब्ध');
+      const errMsg = 'स्थिति जांच में समस्या हुई। कृपया पुनः प्रयास करें।';
+      lcdHindi.textContent = errMsg;
+      speakHindi(errMsg);
+    }
   }
 
   // --- SMS Delivery System ---

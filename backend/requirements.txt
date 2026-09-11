@@ -7,3 +7,4 @@ python-dotenv
 thefuzz
 python-Levenshtein
 httpx
+requests>=2.28.0
