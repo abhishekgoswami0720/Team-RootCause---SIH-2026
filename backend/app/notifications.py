@@ -1,39 +1,56 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from . import models
+"""
+Notification pipeline.
 
-async def queue_sms_notification(db: AsyncSession, farmer_id: int, message: str):
-    """
-    Queue an SMS message for a farmer. This writes to the notifications table.
-    The actual sending would be handled by a background worker or chron job
-    to avoid blocking the API response and to handle retries.
-    """
-    notification = models.Notification(
-        farmer_id=farmer_id,
-        message=message,
-        status="queued"
-    )
-    db.add(notification)
-    await db.commit()
-    await db.refresh(notification)
-    return notification
+In production, send_sms() calls a licensed gateway (Gupshup / MSG91) and
+send_voice() calls Exotel. Both need DLT registration in India, which
+takes weeks, so both are stubbed for the demo. Queueing, status and
+retries are real.
+"""
 
-async def process_queued_notifications(db: AsyncSession):
-    """
-    This function simulates a background job processing queued SMS.
-    In a real app, you might use Celery or APScheduler.
-    """
-    result = await db.execute(
-        select(models.Notification).where(models.Notification.status == "queued")
-    )
-    notifications = result.scalars().all()
-    
-    for notif in notifications:
-        # SIMULATE: Send SMS via DLT/Twilio/Exotel
-        # print(f"Sending SMS to Farmer ID {notif.farmer_id}: {notif.message}")
-        
-        # Mark as sent
-        notif.status = "sent"
-        
-    if notifications:
-        await db.commit()
+from .database import get_conn
+
+
+def queue_message(conn, farmer_id, phone, channel, body, reason):
+    row = conn.execute(
+        "INSERT INTO notifications (farmer_id, phone, channel, body, reason) "
+        "VALUES (%s, %s, %s, %s, %s) RETURNING id;",
+        (farmer_id, phone, channel, body, reason),
+    ).fetchone()
+    return row[0]
+
+
+def send_sms(phone, body):
+    # PRODUCTION: POST to SMS gateway, return provider message id
+    return True
+
+
+def send_voice(phone, body):
+    # PRODUCTION: Exotel outbound call, TTS reads `body`
+    return True
+
+
+def flush_queue():
+    sent, failed = 0, 0
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, phone, channel, body FROM notifications "
+            "WHERE status IN ('QUEUED','FAILED') AND attempts < 3;"
+        ).fetchall()
+        for nid, phone, channel, body in rows:
+            ok = send_sms(phone, body) if channel == "SMS" else send_voice(phone, body)
+            if ok:
+                conn.execute(
+                    "UPDATE notifications SET status='DELIVERED', "
+                    "attempts = attempts + 1, delivered_at = NOW() WHERE id = %s;",
+                    (nid,),
+                )
+                sent += 1
+            else:
+                conn.execute(
+                    "UPDATE notifications SET status='FAILED', "
+                    "attempts = attempts + 1 WHERE id = %s;",
+                    (nid,),
+                )
+                failed += 1
+        conn.commit()
+    return {"sent": sent, "failed": failed}

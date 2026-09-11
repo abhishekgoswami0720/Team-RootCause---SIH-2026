@@ -1,111 +1,79 @@
-import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import engine, Base, AsyncSessionLocal
-from app.models import Farmer, Slot, Booking, BookingStatus
-from datetime import date, time, datetime
+"""
+Seed the database from seed_data.csv, against schema.sql (run schema.sql
+first). Safe to re-run: skips if farmers already exist.
+"""
 
-async def seed_data():
-    async with engine.begin() as conn:
-        # Create tables
-        await conn.run_sync(Base.metadata.create_all)
-        
-    async with AsyncSessionLocal() as session:
-        # Check if already seeded
-        from sqlalchemy import select
-        result = await session.execute(select(Farmer).limit(1))
-        if result.scalar() is not None:
-            print("Database already seeded!")
+import csv
+from collections import Counter
+from datetime import date, datetime
+
+from app.database import get_conn
+
+CAPACITY_BUFFER = 2  # headroom above the seeded count per slot, for live demo bookings
+
+
+def parse_slot_time(slot_key: str):
+    start_str, _end_str = [s.strip() for s in slot_key.split("-")]
+    return datetime.strptime(start_str, "%I:%M %p").time()
+
+
+def seed():
+    with open("seed_data.csv", "r", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    with get_conn() as conn:
+        existing = conn.execute("SELECT COUNT(*) FROM farmers;").fetchone()[0]
+        if existing:
+            print("Database already seeded! Truncate farmers/slots/bookings to reseed.")
             return
 
-        print("Seeding database...")
-        
-        # 1. Parse CSV and build objects
-        import csv
-        from collections import defaultdict
-        
-        # We will create slots dynamically based on 'slot_time'
-        slots_data = {}
-        farmers_to_insert = []
-        bookings_data = []
-        
-        try:
-            with open("seed_data.csv", "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    # e.g., "06:00 AM - 08:00 AM" -> start: "06:00:00", end: "08:00:00"
-                    slot_str = row.get("slot_time", "09:00 AM - 10:00 AM")
-                    
-                    if slot_str not in slots_data:
-                        start_str = slot_str.split(" - ")[0].strip()
-                        end_str = slot_str.split(" - ")[1].strip()
-                        start_t = datetime.strptime(start_str, "%I:%M %p").time()
-                        end_t = datetime.strptime(end_str, "%I:%M %p").time()
-                        
-                        slot = Slot(
-                            date=date.today(),
-                            start_time=start_t,
-                            end_time=end_t,
-                            capacity=50,
-                            booked_count=0
-                        )
-                        session.add(slot)
-                        slots_data[slot_str] = slot
-                        
-                await session.commit()
-                
-                # Refresh slots
-                for s in slots_data.values():
-                    await session.refresh(s)
-                    
-                # Re-read to insert farmers and bookings
-                f.seek(0)
-                reader = csv.DictReader(f)
-                for row in reader:
-                    farmer = Farmer(
-                        phone_number=row["phone_number"],
-                        name=row["name"],
-                        village=row["village"],
-                        crop=row["crop"]
-                    )
-                    session.add(farmer)
-                    
-                    # map status
-                    status_raw = row.get("status", "BOOKED").upper()
-                    status_val = BookingStatus.WAITING
-                    if status_raw == "SERVED": status_val = BookingStatus.SERVED
-                    elif status_raw == "NO_SHOW": status_val = BookingStatus.NO_SHOW
-                    
-                    slot_str = row.get("slot_time", "09:00 AM - 10:00 AM")
-                    bookings_data.append({
-                        "farmer": farmer,
-                        "slot": slots_data[slot_str],
-                        "token": row.get("token_no", f"TKN-{row['phone_number']}"),
-                        "status": status_val
-                    })
-                    
-        except FileNotFoundError:
-            print("seed_data.csv not found.")
-            return
-            
-        await session.commit()
-        
-        for data in bookings_data:
-            await session.refresh(data["farmer"])
-            
-            booking = Booking(
-                token_number=data["token"],
-                farmer_id=data["farmer"].id,
-                slot_id=data["slot"].id,
-                status=data["status"]
+        today = date.today()
+        slot_counts = Counter(row["slot_time"] for row in rows)
+
+        # Create slots with capacity = seeded count + buffer
+        slot_ids = {}
+        for slot_key, count in slot_counts.items():
+            start_t = parse_slot_time(slot_key)
+            row = conn.execute(
+                "INSERT INTO slots (slot_date, start_time, capacity, booked) "
+                "VALUES (%s, %s, %s, 0) "
+                "ON CONFLICT (slot_date, start_time) DO UPDATE SET capacity = EXCLUDED.capacity "
+                "RETURNING id;",
+                (today, start_t, count + CAPACITY_BUFFER),
+            ).fetchone()
+            slot_ids[slot_key] = row[0]
+
+        token_counters = Counter()  # per slot_date
+
+        for row in rows:
+            farmer = conn.execute(
+                "INSERT INTO farmers (phone, name, village) "
+                "VALUES (%s, %s, %s) "
+                "ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name "
+                "RETURNING id;",
+                (row["phone_number"], row["name"], row["village"]),
+            ).fetchone()
+            farmer_id = farmer[0]
+
+            slot_id = slot_ids[row["slot_time"]]
+            status = row.get("status", "BOOKED").upper()
+
+            token_counters[today] += 1
+            token_number = token_counters[today]
+
+            conn.execute(
+                "INSERT INTO bookings (farmer_id, slot_id, token_number, crop, status) "
+                "VALUES (%s, %s, %s, %s, %s);",
+                (farmer_id, slot_id, token_number, row["crop"], status),
             )
-            session.add(booking)
-            
-            # Update booked count
-            data["slot"].booked_count += 1
-            
-        await session.commit()
-        
-        print(f"Database seeded successfully with {len(bookings_data)} farmers and {len(slots_data)} slots!")
+            conn.execute(
+                "UPDATE slots SET booked = booked + 1 WHERE id = %s;",
+                (slot_id,),
+            )
+
+        conn.commit()
+        print(f"Seeded {len(rows)} farmers/bookings across {len(slot_ids)} slots.")
+
 
 if __name__ == "__main__":
-    asyncio.run(seed_data())
+    seed()

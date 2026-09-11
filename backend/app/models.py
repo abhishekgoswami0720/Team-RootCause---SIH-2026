@@ -1,59 +1,26 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Date, Time, Enum
-from sqlalchemy.orm import relationship
-from .database import Base
-from datetime import datetime
-import enum
+"""
+Shared constants for the booking lifecycle.
 
-class BookingStatus(str, enum.Enum):
-    WAITING = "waiting"
-    SERVED = "served"
-    NO_SHOW = "no_show"
-    RESCHEDULED = "rescheduled"
+No ORM layer — every router talks to schema.sql directly via
+app.database.get_conn(). This file just centralizes the status
+strings so "BOOKED" / "SERVED" etc. aren't typo'd differently across
+routers.
+"""
 
-class Farmer(Base):
-    __tablename__ = "farmers"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    phone_number = Column(String, unique=True, index=True, nullable=False)
-    name = Column(String, nullable=True)
-    village = Column(String, nullable=True)
-    crop = Column(String, nullable=True)
 
-    bookings = relationship("Booking", back_populates="farmer")
-    notifications = relationship("Notification", back_populates="farmer")
+class BookingStatus:
+    BOOKED = "BOOKED"
+    SERVED = "SERVED"
+    NO_SHOW = "NO_SHOW"
+    RESCHEDULED = "RESCHEDULED"
 
-class Slot(Base):
-    __tablename__ = "slots"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    date = Column(Date, nullable=False)
-    start_time = Column(Time, nullable=False)
-    end_time = Column(Time, nullable=False)
-    capacity = Column(Integer, nullable=False)
-    booked_count = Column(Integer, default=0, nullable=False)
 
-    bookings = relationship("Booking", back_populates="slot")
+class NotificationChannel:
+    SMS = "SMS"
+    VOICE = "VOICE"
 
-class Booking(Base):
-    __tablename__ = "bookings"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    token_number = Column(String, unique=True, index=True, nullable=False)
-    farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=False)
-    slot_id = Column(Integer, ForeignKey("slots.id"), nullable=False)
-    status = Column(String, default=BookingStatus.WAITING.value) # waiting, served, no_show, rescheduled
-    created_at = Column(DateTime, default=datetime.utcnow)
 
-    farmer = relationship("Farmer", back_populates="bookings")
-    slot = relationship("Slot", back_populates="bookings")
-
-class Notification(Base):
-    __tablename__ = "notifications"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=False)
-    message = Column(String, nullable=False)
-    status = Column(String, default="queued") # queued, sent, failed
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    farmer = relationship("Farmer", back_populates="notifications")
+class NotificationStatus:
+    QUEUED = "QUEUED"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"

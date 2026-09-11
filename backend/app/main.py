@@ -1,10 +1,8 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.settings import settings
-from app.database import engine, Base
+from app.database import active_db
 
 from app.routers import (
     farmer,
@@ -19,14 +17,8 @@ from app.middleware.error_handler import (
     global_exception_handler
 )
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Initialize DB tables on startup (hackathon setup; use Alembic in production)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-
+# Note: tables are created from schema.sql directly (psql -f schema.sql),
+# not auto-created on startup. See schema.sql for the source of truth.
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -43,7 +35,6 @@ app = FastAPI(
     """,
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan
 )
 
 
@@ -106,5 +97,6 @@ def root():
 @app.get("/health", tags=["System"])
 def health_check():
     return {
-        "status": "healthy"
+        "status": "healthy",
+        "database": active_db()
     }
