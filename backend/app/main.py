@@ -1,5 +1,8 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 
 from app.config.settings import settings
 from app.database import active_db
@@ -89,6 +92,17 @@ app.include_router(
     dashboard.router,
     prefix="/api/v1"
 )
+
+
+# Mount Farmer Feature Phone Simulator
+simulator_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "phone-simulator")
+if os.path.exists(simulator_dir):
+    app.mount("/phone", StaticFiles(directory=simulator_dir, html=True), name="phone-simulator")
+
+
+@app.get("/simulator", tags=["Simulator"], include_in_schema=False)
+def redirect_to_phone():
+    return RedirectResponse(url="/phone/")
 
 
 @app.get("/", tags=["System"])

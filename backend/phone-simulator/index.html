@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MandiQ — किसान फोन सिम्युलेटर (Farmer Phone Simulator)</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📞</text></svg>">
+</head>
+<body>
+
+  <!-- Top Header Banner -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">🌾</div>
+      <div class="brand-text">
+        <h1>MandiQ — किसान फोन सिम्युलेटर</h1>
+        <p>स्मार्टफोन नहीं? कोई समस्या नहीं। साधारण फोन कॉल से मंडी स्लॉट बुकिंग।</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <div class="badge" id="api-status-badge">
+        <span class="badge-pulse"></span>
+        <span id="api-status-text">सर्वर: कनेक्टेड (8000)</span>
+      </div>
+      <div class="badge">
+        <span>👤 ट्रैक 4: मेधावी (Farmer's Phone)</span>
+      </div>
+      <div class="badge">
+        <span>🏆 Team RootCause · SIH 2026</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="main-container">
+    
+    <!-- LEFT: Feature Phone Hardware Simulation -->
+    <section class="phone-column" aria-label="Feature Phone Simulator">
+      <div class="phone-device" id="feature-phone">
+        
+        <!-- Speaker Grill -->
+        <div class="phone-speaker-slit" title="Earpiece"></div>
+        <div class="phone-brand-label">MandiQ · 4G LITE</div>
+
+        <!-- Green Monochrome Backlit LCD Screen -->
+        <div class="screen-housing">
+          <div class="lcd-display" id="lcd-screen">
+            
+            <!-- LCD Status Bar -->
+            <div class="lcd-statusbar">
+              <div class="lcd-signal-bars" title="Signal Strength">
+                <span class="lcd-signal-bar b1"></span>
+                <span class="lcd-signal-bar b2"></span>
+                <span class="lcd-signal-bar b3"></span>
+                <span class="lcd-signal-bar b4"></span>
+              </div>
+              <span class="lcd-carrier">BSNL 4G</span>
+              <span class="lcd-clock" id="lcd-clock">10:45 AM</span>
+              <div class="lcd-battery" title="Battery 80%">
+                <span class="lcd-batt-bar"></span>
+                <span class="lcd-batt-bar"></span>
+                <span class="lcd-batt-bar"></span>
+              </div>
+            </div>
+
+            <!-- LCD Body / Content -->
+            <div class="lcd-content" id="lcd-main-content">
+              <div class="lcd-title" id="lcd-call-status">मंडी-क्यू सेवा</div>
+              <div class="lcd-hindi-text" id="lcd-hindi-text">
+                कॉल करने के लिए हरा बटन दबाएँ
+              </div>
+              <div class="lcd-prompt-state" id="lcd-prompt-state">
+                [ 1: बुक | 2: स्थिति ]
+              </div>
+              <div class="lcd-timer" id="lcd-call-timer" style="display: none;">00:00</div>
+            </div>
+
+            <!-- LCD Footer Function Labels -->
+            <div class="lcd-footer">
+              <span id="lcd-left-softkey">मेन्यू</span>
+              <span id="lcd-center-label">🎤 बोलें</span>
+              <span id="lcd-right-softkey">संपर्क</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Keypad & Nav Cluster -->
+        <div class="keypad-cluster">
+          
+          <!-- Navigation & Center Mic/Action Button -->
+          <div class="nav-cluster">
+            <button class="softkey" id="btn-soft-left" title="Left Selection Key">मेनू</button>
+            <div class="dpad-center">
+              <button class="btn-mic-action" id="btn-mic" title="बोलने के लिए दबाएँ (Press to speak Hindi)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="22"></line>
+                </svg>
+                <span id="mic-label">बोलें</span>
+              </button>
+            </div>
+            <button class="softkey" id="btn-soft-right" title="Right Selection Key">वापस</button>
+          </div>
+
+          <!-- Green Call & Red End Call Row -->
+          <div class="call-actions-row">
+            <button class="btn-call btn-call-green" id="btn-call-start" title="कॉल डायल करें (Call MandiQ IVR)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+              <span>कॉल (1800)</span>
+            </button>
+            <button class="btn-call btn-call-red" id="btn-call-end" title="कॉल समाप्त करें (End Call)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <span>काटें (End)</span>
+            </button>
+          </div>
+
+          <!-- 12-Key Physical Keypad Matrix -->
+          <div class="keypad-matrix">
+            <button class="key-btn" data-key="1">
+              <span class="key-digit">1</span>
+              <span class="key-letters">बुक स्लॉट</span>
+            </button>
+            <button class="key-btn" data-key="2">
+              <span class="key-digit">2</span>
+              <span class="key-letters">स्थिति जांच</span>
+            </button>
+            <button class="key-btn" data-key="3">
+              <span class="key-digit">3</span>
+              <span class="key-letters">गेहूँ</span>
+            </button>
+            <button class="key-btn" data-key="4">
+              <span class="key-digit">4</span>
+              <span class="key-letters">धान</span>
+            </button>
+            <button class="key-btn" data-key="5">
+              <span class="key-digit">5</span>
+              <span class="key-letters">सरसों</span>
+            </button>
+            <button class="key-btn" data-key="6">
+              <span class="key-digit">6</span>
+              <span class="key-letters">मक्का</span>
+            </button>
+            <button class="key-btn" data-key="7">
+              <span class="key-digit">7</span>
+              <span class="key-letters">PQRS</span>
+            </button>
+            <button class="key-btn" data-key="8">
+              <span class="key-digit">8</span>
+              <span class="key-letters">TUV</span>
+            </button>
+            <button class="key-btn" data-key="9">
+              <span class="key-digit">9</span>
+              <span class="key-letters">WXYZ</span>
+            </button>
+            <button class="key-btn special" data-key="*">
+              <span class="key-digit">*</span>
+              <span class="key-letters">पुनः सुनें</span>
+            </button>
+            <button class="key-btn" data-key="0">
+              <span class="key-digit">0</span>
+              <span class="key-letters">+ / स्पेस</span>
+            </button>
+            <button class="key-btn special" data-key="#">
+              <span class="key-digit">#</span>
+              <span class="key-letters">पुष्टि करें</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Farmer SMS Inbox & Demo Controller -->
+    <section class="side-column">
+      
+      <!-- SMS Inbox Card -->
+      <div class="card">
+        <div class="card-title-bar">
+          <h2>
+            <span>📩</span>
+            <span>किसान का SMS इनबॉक्स (Incoming SMS)</span>
+          </h2>
+          <span class="badge-counter" id="sms-counter">1 संदेश</span>
+        </div>
+        
+        <div class="sms-inbox" id="sms-inbox-list">
+          <!-- Initial welcome SMS -->
+          <div class="sms-bubble">
+            <div class="sms-header">
+              <span class="sms-sender">VK-MANDIQ</span>
+              <span class="sms-time">अभी-अभी</span>
+            </div>
+            <div class="sms-body">
+              नमस्ते किसान भाई! करनाल कृषि उपज मंडी में आपका स्वागत है। स्लॉट बुक करने के लिए टोल-फ्री 1800-202-0019 पर कॉल करें या फोन पर हरा बटन दबाएँ।
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Demo Scenarios Card (Essential for 4-minute presentation) -->
+      <div class="card">
+        <div class="card-title-bar">
+          <h2>
+            <span>⚡</span>
+            <span>जज प्रेजेंटेशन शॉर्टकट (4-Minute Demo Triggers)</span>
+          </h2>
+          <span class="badge" style="color: #38bdf8;">डेमो मोड</span>
+        </div>
+        
+        <div class="scenarios-grid">
+          <button class="btn-scenario green" id="demo-voice-booking" title="Run 0:20-1:30 demo pitch flow">
+            <strong>🎤 1. बोलकर स्लॉट बुकिंग</strong>
+            <span>"रमेश कुमार, नांगल गाँव, गेहूँ" बोलकर तुरंत टोकन व SMS प्राप्त करें</span>
+          </button>
+          
+          <button class="btn-scenario blue" id="demo-status-check" title="Run status check flow">
+            <strong>📊 2. कतार स्थिति (Status)</strong>
+            <span>टोकन T-101 की वर्तमान स्थिति व अनुमानित प्रतीक्षा समय जानें</span>
+          </button>
+          
+          <button class="btn-scenario red" id="demo-halt-sms" title="Simulate 2:00-3:00 demo moment">
+            <strong>🔴 3. मंडी रुकावट (HALT SMS)</strong>
+            <span>मंडी बंद होने पर स्वचालित पुनर्निर्धारण (Reschedule) संदेश देखें</span>
+          </button>
+
+          <button class="btn-scenario" id="demo-clear-all" title="Reset all state">
+            <strong>🔄 4. रीसेट (Fresh State)</strong>
+            <span>फोन को आरंभिक अवस्था में लाएं और नए कॉल का परीक्षण करें</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live IVR Console & Speech Transcript -->
+      <div class="card">
+        <div class="card-title-bar">
+          <h2>
+            <span>📟</span>
+            <span>आईवीआर कॉल व ऑडियो ट्रांसक्रिप्ट (Live Console)</span>
+          </h2>
+          <span class="badge" style="font-family: var(--font-mono); font-size: 10px;" id="audio-state">स्पीच तैयार</span>
+        </div>
+        
+        <div class="console-box" id="console-logs">
+          <div class="log-entry">
+            <span class="log-time">[10:45:00]</span>
+            <span class="log-ivr">मंडी-क्यू आईवीआर इंजन तैयार है। टोल-फ्री: 1800-202-0019.</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>MandiQ — BookMyShow for Mandis over IVR · SIH26032 · GLA University Team RootCause</p>
+    <p style="margin-top: 4px;">
+      <a href="http://127.0.0.1:8000/docs" target="_blank">🔗 बैकएंड API डॉक्युमेंटेशन (Swagger /docs)</a>
+    </p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
